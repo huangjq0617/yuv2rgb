@@ -31,9 +31,9 @@ extern "C" {
 
 // yuv to rgb, standard c implementation
 void yuv420_rgb24_std(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv to rgb, yuv in nv12 semi planar format
@@ -53,49 +53,49 @@ void nv21_rgb24_std(
 // yuv to rgb, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisable by 16
 void yuv420_rgb24_sse(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv to rgb, sse implementation
 // pointers do not need to be 16 byte aligned
 void yuv420_rgb24_sseu(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *u, const uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv nv12 to rgb, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisable by 16
 void nv12_rgb24_sse(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv nv12 to rgb, sse implementation
 // pointers do not need to be 16 byte aligned
 void nv12_rgb24_sseu(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv nv21 to rgb, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisable by 16
 void nv21_rgb24_sse(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 // yuv nv21 to rgb, sse implementation
 // pointers do not need to be 16 byte aligned
 void nv21_rgb24_sseu(
-	uint32_t width, uint32_t height, 
-	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride, 
-	uint8_t *rgb, uint32_t rgb_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *y, const uint8_t *uv, uint32_t y_stride, uint32_t uv_stride,
+	uint8_t *rgb, uint32_t rgb_stride,
 	YCbCrType yuv_type);
 
 
@@ -103,74 +103,84 @@ void nv21_rgb24_sseu(
 
 // rgb to yuv, standard c implementation
 void rgb24_yuv420_std(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgb, uint32_t rgb_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgb to yuv, standard c implementation
 void rgb24_yuv420_std_float(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgb, uint32_t rgb_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgb to yuv, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisible by 16
 void rgb24_yuv420_sse(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgb, uint32_t rgb_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgb to yuv, sse implementation
 // pointers do not need to be 16 byte aligned
 void rgb24_yuv420_sseu(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgb, uint32_t rgb_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgba to yuv, standard c implementation
 // alpha channel is ignored
 void rgb32_yuv420_std(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgba, uint32_t rgba_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgba, uint32_t rgba_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgba to yuv, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisible by 16
 // alpha channel is ignored
 void rgb32_yuv420_sse(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgba, uint32_t rgba_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgba, uint32_t rgba_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
 // rgba to yuv, sse implementation
 // pointers do not need to be 16 byte aligned
 // alpha channel is ignored
 void rgb32_yuv420_sseu(
-	uint32_t width, uint32_t height, 
-	const uint8_t *rgba, uint32_t rgba_stride, 
-	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride, 
+	uint32_t width, uint32_t height,
+	const uint8_t *rgba, uint32_t rgba_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	YCbCrType yuv_type);
+
+// rgba to yuv, standard c implementation
+// alpha channel is handled
+void rgb32_yuva420_std(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
 	YCbCrType yuv_type);
 
 // rgba to yuva, sse implementation
 // pointers must be 16 byte aligned, and strides must be divisible by 16
-// alpha channel is ignored
-void rgba32_yuva420_sse(uint32_t width, uint32_t height, 
-	const uint8_t *RGBA, uint32_t RGBA_stride, 
-	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride, 
+// alpha channel is handled
+void rgba32_yuva420_sse(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
 	YCbCrType yuv_type);
 
 // rgba to yuva, sse implementation
 // pointers do not need to be 16 byte aligned
-// alpha channel is ignored
-void rgba32_yuva420_sseu(uint32_t width, uint32_t height, 
-	const uint8_t *RGBA, uint32_t RGBA_stride, 
-	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride, 
+// alpha channel is handled
+void rgba32_yuva420_sseu(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
 	YCbCrType yuv_type);
 
 #ifdef __cplusplus

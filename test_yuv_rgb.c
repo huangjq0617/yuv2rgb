@@ -82,9 +82,10 @@ int saveRawYUVA(const char *filename, uint32_t width, uint32_t height, const uin
 	}
 	
 	
-	if(uv_stride==(width+1/2))
+	if(uv_stride==((width+1)/2))
 	{
 		fwrite(YUV, 1, ((width+1)/2)*((height+1)/2)*2, fp);
+		YUV+=uv_stride*height;
 	}
 	else
 	{
@@ -124,7 +125,7 @@ int saveRawYUVA(const char *filename, uint32_t width, uint32_t height, const uin
 
 // read a ppm binary image file
 // memory must be freed with free
-int readPPM(const char* filename, uint32_t *width, uint32_t *height, uint8_t **RGB)
+int readPPM(const char* filename, uint32_t *width, uint32_t *height, uint8_t **RGB, uint8_t withAlpha)
 {
 	FILE *fp = fopen(filename, "rb");
 	if(!fp)
@@ -153,7 +154,7 @@ int readPPM(const char* filename, uint32_t *width, uint32_t *height, uint8_t **R
 	}
 	printf("width=%u, height=%u\n", *width, *height);
 	
-	size_t size = 3*(*width)*(*height);
+	size_t size = (*width)*(*height) * (withAlpha ? 4 : 3);
 	*RGB = malloc(size);
 	if(!*RGB)
 	{
@@ -211,8 +212,7 @@ void convert_rgb_to_rgba(const uint8_t *RGB, uint32_t width, uint32_t height, ui
 			(*RGBA)[(y*width+x)*4] = RGB[(y*width+x)*3];
 			(*RGBA)[(y*width+x)*4+1] = RGB[(y*width+x)*3+1];
 			(*RGBA)[(y*width+x)*4+2] = RGB[(y*width+x)*3+2];
-			// (*RGBA)[(y*width+x)*4+3] = 0;
-			(*RGBA)[(y*width+x)*4+3] = y % 256;
+			(*RGBA)[(y*width+x)*4+3] = 0;
 		}
 	}
 }
@@ -554,7 +554,7 @@ int main(int argc, char **argv)
 		out = argv[3];
 		
 		// read input data and allocate output data
-		if(readPPM(filename, &width, &height, &RGB)!=0)
+		if(readPPM(filename, &width, &height, &RGB, 0)!=0)
 		{
 			printf("Error reading image file, check that the file exists and has the correct format.\n");
 			return 1;
@@ -622,51 +622,67 @@ int main(int argc, char **argv)
 		out = argv[3];
 		
 		// read input data and allocate output data
-		if(readPPM(filename, &width, &height, &RGB)!=0)
+		if(readPPM(filename, &width, &height, &RGB, 1)!=0)
 		{
 			printf("Error reading image file, check that the file exists and has the correct format.\n");
 			return 1;
 		}
 		// convert rgb to rgba
-		uint8_t *RGBA = NULL;
+		uint8_t *RGBA = RGB;
+#if 0				
 		convert_rgb_to_rgba(RGB, width, height, &RGBA);
+#else
+		RGB = NULL;
+#endif
 
-		YUV = malloc(width*height*5/2);
-		// memset(YUV, 0xCD, width*height*5/2);
-		
+		const size_t unaligned_size = width*height*5/2;
+		YUV = malloc(unaligned_size);
+
 		Y = YUV;
 		U = Y+width*height;
 		V = U+((width+1)/2)*((height+1)/2);
 		A = V+((width+1)/2)*((height+1)/2);
-		
+
 		// allocate aligned data
 		const size_t y_stride = width + (ALIGNMENT-width%ALIGNMENT)%ALIGNMENT,
 		uv_stride = (width+1)/2 + (ALIGNMENT-((width+1)/2)%ALIGNMENT)%ALIGNMENT,
 		rgba_stride = width*4 +(ALIGNMENT-(4*width)%ALIGNMENT)%ALIGNMENT;
-		
+
 		RGBa = _mm_malloc(rgba_stride*height, ALIGNMENT);
 		for(unsigned int i=0; i<height; ++i)
 		{
 			memcpy(RGBa+i*rgba_stride, RGBA+i*width*4, width*4);
 		}
-		
 		const size_t y_size = y_stride*height, uv_size = uv_stride*((height+1)/2);
-		YUVa = _mm_malloc(2*y_size+2*uv_size, ALIGNMENT);
-		// memset(YUVa, 0xCD, 2*y_size+2*uv_size);
+		const size_t aligned_size = 2*y_size+2*uv_size;
+		YUVa = _mm_malloc(aligned_size, ALIGNMENT);
 		Ya = YUVa;
 		Ua = Ya+y_size;
 		Va = Ua+uv_size;
 		Aa = Va+uv_size;
 
 		// test all versions
+		memset(YUV, 0, unaligned_size);
 		test_rgb2yuv(width, height, RGBA, width*4, Y, U, V, width, (width+1)/2, yuv_format, 
 			out, "std", iteration_number, rgb32_yuv420_std);
+
+		memset(YUV, 0, unaligned_size);
 		test_rgb2yuv(width, height, RGBA, width*4, Y, U, V, width, (width+1)/2, yuv_format, 
 			out, "sse2_unaligned", iteration_number, rgb32_yuv420_sseu);
+
+		memset(YUVa, 0, aligned_size);
 		test_rgb2yuv(width, height, RGBa, rgba_stride, Ya, Ua, Va, y_stride, uv_stride, yuv_format, 
 			out, "sse2_aligned", iteration_number, rgb32_yuv420_sse);
+
+		memset(YUV, 0, unaligned_size);
+		test_rgba2yuva(width, height, RGBA, width*4, Y, U, V, A, width, (width+1)/2, yuv_format, 
+			out, "std_yuva", iteration_number, rgb32_yuva420_std);
+
+		memset(YUV, 0, unaligned_size);
 		test_rgba2yuva(width, height, RGBA, width*4, Y, U, V, A, width, (width+1)/2, yuv_format, 
 			out, "sse2_unaligned_yuva", iteration_number, rgba32_yuva420_sseu);
+
+		memset(YUVa, 0, aligned_size);
 		test_rgba2yuva(width, height, RGBa, rgba_stride, Ya, Ua, Va, Aa, y_stride, uv_stride, yuv_format, 
 			out, "sse2_aligned_yuva", iteration_number, rgba32_yuva420_sse);
 		
@@ -675,7 +691,7 @@ int main(int argc, char **argv)
 	
 	_mm_free(RGBa);
 	_mm_free(YUVa);
-	free(RGB);
+	if (RGB) free(RGB);
 	free(YUV);
 	
 	return 0;
