@@ -1,7 +1,10 @@
+#set(CMAKE_C_COMPILER "/usr/local/bin/gcc")
+#set(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
+
 cmake_minimum_required (VERSION 2.6)
 project (yuv_rgb)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wall -Wextra -pedantic -std=c99")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wall -Wextra -pedantic -std=c99 -O3")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic -std=c99")
 
 set(USE_FFMPEG FALSE CACHE BOOL "Enable ffmpeg")
@@ -20,6 +23,7 @@ endif(USE_IPP)
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 add_executable(test_yuv_rgb test_yuv_rgb.c yuv_rgb.c)
+target_link_libraries(test_yuv_rgb m)
 
 if(USE_FFMPEG)
 target_link_libraries(test_yuv_rgb swscale)

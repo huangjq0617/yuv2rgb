@@ -1,6 +1,8 @@
 // Copyright 2016 Adrien Descamps
 // Distributed under BSD 3-Clause License
 
+#include <stdio.h>
+#include <math.h>
 #include "yuv_rgb.h"
 
 #include <emmintrin.h>
@@ -199,6 +201,81 @@ void rgb24_yuv420_std(
 	}
 }
 
+static inline uint8_t av_clip_uint8(int a)
+{
+	if (a&(~0xFF)) return (-a)>>31;
+	else           return a;
+}
+
+void rgb24_yuv420_std_ffmpeg(
+	uint32_t width, uint32_t height, 
+	const uint8_t *RGB, uint32_t RGB_stride, 
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint32_t Y_stride, uint32_t UV_stride, 
+	YCbCrType yuv_type)
+{	
+	yuv_type = yuv_type;
+
+#define RGB2YUV_SHIFT 15
+#define BY ( (int) (0.114 * 219 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define BV (-(int) (0.081 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define BU ( (int) (0.500 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define GY ( (int) (0.587 * 219 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define GV (-(int) (0.419 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define GU (-(int) (0.331 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define RY ( (int) (0.299 * 219 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define RV ( (int) (0.500 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+#define RU (-(int) (0.169 * 224 / 255 * (1 << RGB2YUV_SHIFT) + 0.5))
+
+	uint32_t x, y;
+	for(y=0; y<(height-1); y+=2)
+	{
+		const uint8_t *rgb_ptr1=RGB+y*RGB_stride,
+			*rgb_ptr2=RGB+(y+1)*RGB_stride;
+		
+		uint8_t *y_ptr1=Y+y*Y_stride,
+			*y_ptr2=Y+(y+1)*Y_stride,
+			*u_ptr=U+(y/2)*UV_stride,
+			*v_ptr=V+(y/2)*UV_stride;
+		
+		for(x=0; x<(width-1); x+=2)
+		{
+			// compute yuv for the four pixels, u and v values are summed
+			uint8_t y_tmp;
+			int16_t u_tmp, v_tmp;
+
+			y_tmp = av_clip_uint8((RY * rgb_ptr1[0] + GY * rgb_ptr1[1] + BY * rgb_ptr1[2] + ( 33 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			u_tmp = av_clip_uint8((RU * rgb_ptr1[0] + GU * rgb_ptr1[1] + BU * rgb_ptr1[2] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			v_tmp = av_clip_uint8((RV * rgb_ptr1[0] + GV * rgb_ptr1[1] + BV * rgb_ptr1[2] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			y_ptr1[0]= (y_tmp);
+
+			y_tmp = av_clip_uint8((RY * rgb_ptr1[3] + GY * rgb_ptr1[4] + BY * rgb_ptr1[5] + ( 33 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			u_tmp += av_clip_uint8((RU * rgb_ptr1[3] + GU * rgb_ptr1[4] + BU * rgb_ptr1[5] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			v_tmp += av_clip_uint8((RV * rgb_ptr1[3] + GV * rgb_ptr1[4] + BV * rgb_ptr1[5] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			y_ptr1[1]= (y_tmp);
+
+			y_tmp = av_clip_uint8((RY * rgb_ptr2[0] + GY * rgb_ptr2[1] + BY * rgb_ptr2[2] + ( 33 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			u_tmp += av_clip_uint8((RU * rgb_ptr2[0] + GU * rgb_ptr2[1] + BU * rgb_ptr2[2] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			v_tmp += av_clip_uint8((RV * rgb_ptr2[0] + GV * rgb_ptr2[1] + BV * rgb_ptr2[2] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			y_ptr2[0]= (y_tmp);
+
+			y_tmp = av_clip_uint8((RY * rgb_ptr2[3] + GY * rgb_ptr2[4] + BY * rgb_ptr2[5] + ( 33 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			u_tmp += av_clip_uint8((RU * rgb_ptr2[3] + GU * rgb_ptr2[4] + BU * rgb_ptr2[5] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			v_tmp += av_clip_uint8((RV * rgb_ptr2[3] + GV * rgb_ptr2[4] + BV * rgb_ptr2[5] + ( 257 << (RGB2YUV_SHIFT - 1))) >> RGB2YUV_SHIFT);
+			y_ptr2[1]= (y_tmp);
+
+			u_ptr[0] = u_tmp / 4;
+			v_ptr[0] = v_tmp / 4;
+
+			rgb_ptr1 += 6;
+			rgb_ptr2 += 6;
+			y_ptr1 += 2;
+			y_ptr2 += 2;
+			u_ptr += 1;
+			v_ptr += 1;
+		}
+	}
+}
+
 void rgb32_yuv420_std(
 	uint32_t width, uint32_t height, 
 	const uint8_t *RGBA, uint32_t RGBA_stride, 
@@ -245,7 +322,7 @@ void rgb32_yuv420_std(
 			y_ptr2[1]=((y_tmp*param->y_factor)>>7) + param->y_offset;
 
 			u_ptr[0] = (((u_tmp>>2)*param->cb_factor)>>8) + 128;
-			v_ptr[0] = (((v_tmp>>2)*param->cb_factor)>>8) + 128;
+			v_ptr[0] = (((v_tmp>>2)*param->cr_factor)>>8) + 128;
 			
 			rgb_ptr1 += 8;
 			rgb_ptr2 += 8;
@@ -621,6 +698,8 @@ void rgb24_yuv420_sse(uint32_t width, uint32_t height,
 	const RGB2YUVParam *const param = &(RGB2YUV[yuv_type]);
 	
 	uint32_t x, y;
+	width = width;
+
 	for(y=0; y<(height-1); y+=2)
 	{
 		const uint8_t *rgb_ptr1=RGB+y*RGB_stride,
@@ -631,7 +710,7 @@ void rgb24_yuv420_sse(uint32_t width, uint32_t height,
 			*u_ptr=U+(y/2)*UV_stride,
 			*v_ptr=V+(y/2)*UV_stride;
 		
-		for(x=0; x<(width-31); x+=32)
+		for(x=0; x<(Y_stride-31); x+=32)
 		{
 			RGB2YUV_32
 			
@@ -922,7 +1001,250 @@ void rgb32_yuv420_sseu(uint32_t width, uint32_t height,
 	#undef SAVE_SI128
 }
 
-#endif
+
+#define RGBA2YUVA_32 \
+	__m128i r_16, g_16, b_16; \
+	__m128i y1_16, y2_16, cb1_16, cb2_16, cr1_16, cr2_16, Y, cb, cr, A; \
+	__m128i tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8; \
+	__m128i rgb1 = LOAD_SI128((const __m128i*)(rgb_ptr1)), \
+		rgb2 = LOAD_SI128((const __m128i*)(rgb_ptr1+16)), \
+		rgb3 = LOAD_SI128((const __m128i*)(rgb_ptr1+32)), \
+		rgb4 = LOAD_SI128((const __m128i*)(rgb_ptr1+48)), \
+		rgb5 = LOAD_SI128((const __m128i*)(rgb_ptr2)), \
+		rgb6 = LOAD_SI128((const __m128i*)(rgb_ptr2+16)), \
+		rgb7 = LOAD_SI128((const __m128i*)(rgb_ptr2+32)), \
+		rgb8 = LOAD_SI128((const __m128i*)(rgb_ptr2+48)); \
+	/* unpack rgb24 data to r, g and b data in separate channels*/ \
+	/* see rgb.txt to get an idea of the algorithm, note that we only go to the next to last step*/ \
+	/* here, because averaging in horizontal direction is easier like this*/ \
+	/* The last step is applied further on the Y channel only*/ \
+	UNPACK_RGB32_32_STEP(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_32_STEP(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_32_STEP(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_32_STEP(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	/* first compute Y', (B-Y') and (R-Y'), in 16bits values, for the first line */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are saved*/ \
+	r_16 = _mm_unpacklo_epi8(rgb1, _mm_setzero_si128()); \
+	g_16 = _mm_unpacklo_epi8(rgb2, _mm_setzero_si128()); \
+	b_16 = _mm_unpacklo_epi8(rgb3, _mm_setzero_si128()); \
+	y1_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y1_16 = _mm_add_epi16(y1_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y1_16 = _mm_srli_epi16(y1_16, 8); \
+	cb1_16 = _mm_sub_epi16(b_16, y1_16); \
+	cr1_16 = _mm_sub_epi16(r_16, y1_16); \
+	r_16 = _mm_unpacklo_epi8(rgb5, _mm_setzero_si128()); \
+	g_16 = _mm_unpacklo_epi8(rgb6, _mm_setzero_si128()); \
+	b_16 = _mm_unpacklo_epi8(rgb7, _mm_setzero_si128()); \
+	y2_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y2_16 = _mm_add_epi16(y2_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y2_16 = _mm_srli_epi16(y2_16, 8); \
+	cb1_16 = _mm_add_epi16(cb1_16, _mm_sub_epi16(b_16, y2_16)); \
+	cr1_16 = _mm_add_epi16(cr1_16, _mm_sub_epi16(r_16, y2_16)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y1_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	y2_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y2_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	Y = _mm_packus_epi16(y1_16, y2_16); \
+	Y = _mm_unpackhi_epi8(_mm_slli_si128(Y, 8), Y); \
+	SAVE_SI128((__m128i*)(y_ptr1), Y); \
+	/* same for the second line, compute Y', (B-Y') and (R-Y'), in 16bits values */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are added to the previous values*/ \
+	r_16 = _mm_unpackhi_epi8(rgb1, _mm_setzero_si128()); \
+	g_16 = _mm_unpackhi_epi8(rgb2, _mm_setzero_si128()); \
+	b_16 = _mm_unpackhi_epi8(rgb3, _mm_setzero_si128()); \
+	y1_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y1_16 = _mm_add_epi16(y1_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y1_16 = _mm_srli_epi16(y1_16, 8); \
+	cb1_16 = _mm_add_epi16(cb1_16, _mm_sub_epi16(b_16, y1_16)); \
+	cr1_16 = _mm_add_epi16(cr1_16, _mm_sub_epi16(r_16, y1_16)); \
+	r_16 = _mm_unpackhi_epi8(rgb5, _mm_setzero_si128()); \
+	g_16 = _mm_unpackhi_epi8(rgb6, _mm_setzero_si128()); \
+	b_16 = _mm_unpackhi_epi8(rgb7, _mm_setzero_si128()); \
+	y2_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y2_16 = _mm_add_epi16(y2_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y2_16 = _mm_srli_epi16(y2_16, 8); \
+	cb1_16 = _mm_add_epi16(cb1_16, _mm_sub_epi16(b_16, y2_16)); \
+	cr1_16 = _mm_add_epi16(cr1_16, _mm_sub_epi16(r_16, y2_16)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y1_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	y2_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y2_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	Y = _mm_packus_epi16(y1_16, y2_16); \
+	Y = _mm_unpackhi_epi8(_mm_slli_si128(Y, 8), Y); \
+	SAVE_SI128((__m128i*)(y_ptr2), Y); \
+	A = _mm_unpacklo_epi8(rgb4, rgb8); \
+	SAVE_SI128((__m128i*)(a_ptr1), A); \
+	A = _mm_unpackhi_epi8(rgb4, rgb8); \
+	SAVE_SI128((__m128i*)(a_ptr2), A); \
+	/* Rescale Cb and Cr to their final range */ \
+	cb1_16 = _mm_add_epi16(_mm_srai_epi16(_mm_mullo_epi16(_mm_srai_epi16(cb1_16, 2), _mm_set1_epi16(param->cb_factor)), 8), _mm_set1_epi16(128)); \
+	cr1_16 = _mm_add_epi16(_mm_srai_epi16(_mm_mullo_epi16(_mm_srai_epi16(cr1_16, 2), _mm_set1_epi16(param->cr_factor)), 8), _mm_set1_epi16(128)); \
+	\
+	/* do the same again with next data */ \
+	rgb1 = LOAD_SI128((const __m128i*)(rgb_ptr1+64)), \
+	rgb2 = LOAD_SI128((const __m128i*)(rgb_ptr1+80)), \
+	rgb3 = LOAD_SI128((const __m128i*)(rgb_ptr1+96)), \
+	rgb4 = LOAD_SI128((const __m128i*)(rgb_ptr1+112)), \
+	rgb5 = LOAD_SI128((const __m128i*)(rgb_ptr2+64)), \
+	rgb6 = LOAD_SI128((const __m128i*)(rgb_ptr2+80)), \
+	rgb7 = LOAD_SI128((const __m128i*)(rgb_ptr2+96)), \
+	rgb8 = LOAD_SI128((const __m128i*)(rgb_ptr2+112)); \
+	/* unpack rgb24 data to r, g and b data in separate channels*/ \
+	/* see rgb.txt to get an idea of the algorithm, note that we only go to the next to last step*/ \
+	/* here, because averaging in horizontal direction is easier like this*/ \
+	/* The last step is applied further on the Y channel only*/ \
+	UNPACK_RGB32_32_STEP(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_32_STEP(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_32_STEP(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_32_STEP(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	/* first compute Y', (B-Y') and (R-Y'), in 16bits values, for the first line */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are saved*/ \
+	r_16 = _mm_unpacklo_epi8(rgb1, _mm_setzero_si128()); \
+	g_16 = _mm_unpacklo_epi8(rgb2, _mm_setzero_si128()); \
+	b_16 = _mm_unpacklo_epi8(rgb3, _mm_setzero_si128()); \
+	y1_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y1_16 = _mm_add_epi16(y1_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y1_16 = _mm_srli_epi16(y1_16, 8); \
+	cb2_16 = _mm_sub_epi16(b_16, y1_16); \
+	cr2_16 = _mm_sub_epi16(r_16, y1_16); \
+	r_16 = _mm_unpacklo_epi8(rgb5, _mm_setzero_si128()); \
+	g_16 = _mm_unpacklo_epi8(rgb6, _mm_setzero_si128()); \
+	b_16 = _mm_unpacklo_epi8(rgb7, _mm_setzero_si128()); \
+	y2_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y2_16 = _mm_add_epi16(y2_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y2_16 = _mm_srli_epi16(y2_16, 8); \
+	cb2_16 = _mm_add_epi16(cb2_16, _mm_sub_epi16(b_16, y2_16)); \
+	cr2_16 = _mm_add_epi16(cr2_16, _mm_sub_epi16(r_16, y2_16)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y1_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	y2_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y2_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	Y = _mm_packus_epi16(y1_16, y2_16); \
+	Y = _mm_unpackhi_epi8(_mm_slli_si128(Y, 8), Y); \
+	SAVE_SI128((__m128i*)(y_ptr1+16), Y); \
+	/* same for the second line, compute Y', (B-Y') and (R-Y'), in 16bits values */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are added to the previous values*/ \
+	r_16 = _mm_unpackhi_epi8(rgb1, _mm_setzero_si128()); \
+	g_16 = _mm_unpackhi_epi8(rgb2, _mm_setzero_si128()); \
+	b_16 = _mm_unpackhi_epi8(rgb3, _mm_setzero_si128()); \
+	y1_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y1_16 = _mm_add_epi16(y1_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y1_16 = _mm_srli_epi16(y1_16, 8); \
+	cb2_16 = _mm_add_epi16(cb2_16, _mm_sub_epi16(b_16, y1_16)); \
+	cr2_16 = _mm_add_epi16(cr2_16, _mm_sub_epi16(r_16, y1_16)); \
+	r_16 = _mm_unpackhi_epi8(rgb5, _mm_setzero_si128()); \
+	g_16 = _mm_unpackhi_epi8(rgb6, _mm_setzero_si128()); \
+	b_16 = _mm_unpackhi_epi8(rgb7, _mm_setzero_si128()); \
+	y2_16 = _mm_add_epi16(_mm_mullo_epi16(r_16, _mm_set1_epi16(param->r_factor)), \
+		_mm_mullo_epi16(g_16, _mm_set1_epi16(param->g_factor))); \
+	y2_16 = _mm_add_epi16(y2_16, _mm_mullo_epi16(b_16, _mm_set1_epi16(param->b_factor))); \
+	y2_16 = _mm_srli_epi16(y2_16, 8); \
+	cb2_16 = _mm_add_epi16(cb2_16, _mm_sub_epi16(b_16, y2_16)); \
+	cr2_16 = _mm_add_epi16(cr2_16, _mm_sub_epi16(r_16, y2_16)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y1_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	y2_16 = _mm_add_epi16(_mm_srli_epi16(_mm_mullo_epi16(y2_16, _mm_set1_epi16(param->y_factor)), 7), _mm_set1_epi16(param->y_offset)); \
+	Y = _mm_packus_epi16(y1_16, y2_16); \
+	Y = _mm_unpackhi_epi8(_mm_slli_si128(Y, 8), Y); \
+	SAVE_SI128((__m128i*)(y_ptr2+16), Y); \
+	A = _mm_unpacklo_epi8(rgb4, rgb8); \
+	SAVE_SI128((__m128i*)(a_ptr1+16), A); \
+	A = _mm_unpackhi_epi8(rgb4, rgb8); \
+	SAVE_SI128((__m128i*)(a_ptr2+16), A); \
+	/* Rescale Cb and Cr to their final range */ \
+	cb2_16 = _mm_add_epi16(_mm_srai_epi16(_mm_mullo_epi16(_mm_srai_epi16(cb2_16, 2), _mm_set1_epi16(param->cb_factor)), 8), _mm_set1_epi16(128)); \
+	cr2_16 = _mm_add_epi16(_mm_srai_epi16(_mm_mullo_epi16(_mm_srai_epi16(cr2_16, 2), _mm_set1_epi16(param->cr_factor)), 8), _mm_set1_epi16(128)); \
+	/* Pack and save Cb Cr */ \
+	cb = _mm_packus_epi16(cb1_16, cb2_16); \
+	cr = _mm_packus_epi16(cr1_16, cr2_16); \
+	SAVE_SI128((__m128i*)(u_ptr), cb); \
+	SAVE_SI128((__m128i*)(v_ptr), cr);
+
+void rgba32_yuva420_sse(uint32_t width, uint32_t height, 
+	const uint8_t *RGBA, uint32_t RGBA_stride, 
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride, 
+	YCbCrType yuv_type)
+{
+	#define LOAD_SI128 _mm_load_si128
+	#define SAVE_SI128 _mm_store_si128
+	const RGB2YUVParam *const param = &(RGB2YUV[yuv_type]);
+	
+	uint32_t x, y;
+	for(y=0; y<(height-1); y+=2)
+	{
+		const uint8_t *rgb_ptr1=RGBA+y*RGBA_stride,
+			*rgb_ptr2=RGBA+(y+1)*RGBA_stride;
+		
+		uint8_t *y_ptr1=Y+y*Y_stride,
+			*y_ptr2=Y+(y+1)*Y_stride,
+			*u_ptr=U+(y/2)*UV_stride,
+			*v_ptr=V+(y/2)*UV_stride,
+			*a_ptr1=A+y*Y_stride,
+			*a_ptr2=A+(y+1)*Y_stride;
+		
+		for(x=0; x<(width-31); x+=32)
+		{
+			RGBA2YUVA_32
+			
+			rgb_ptr1+=128;
+			rgb_ptr2+=128;
+			y_ptr1+=32;
+			y_ptr2+=32;
+			u_ptr+=16; 
+			v_ptr+=16;
+			a_ptr1+=32;
+			a_ptr2+=32;
+		}
+	}
+	#undef LOAD_SI128
+	#undef SAVE_SI128
+}
+
+void rgba32_yuva420_sseu(uint32_t width, uint32_t height, 
+	const uint8_t *RGBA, uint32_t RGBA_stride, 
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride, 
+	YCbCrType yuv_type)
+{
+	#define LOAD_SI128 _mm_loadu_si128
+	#define SAVE_SI128 _mm_storeu_si128
+	const RGB2YUVParam *const param = &(RGB2YUV[yuv_type]);
+	
+	uint32_t x, y;
+	for(y=0; y<(height-1); y+=2)
+	{
+		const uint8_t *rgb_ptr1=RGBA+y*RGBA_stride,
+			*rgb_ptr2=RGBA+(y+1)*RGBA_stride;
+		
+		uint8_t *y_ptr1=Y+y*Y_stride,
+			*y_ptr2=Y+(y+1)*Y_stride,
+			*u_ptr=U+(y/2)*UV_stride,
+			*v_ptr=V+(y/2)*UV_stride,
+			*a_ptr1=A+y*Y_stride,
+			*a_ptr2=A+(y+1)*Y_stride;
+		
+		for(x=0; x<(width-31); x+=32)
+		{
+			RGBA2YUVA_32
+			
+			rgb_ptr1+=128;
+			rgb_ptr2+=128;
+			y_ptr1+=32;
+			y_ptr2+=32;
+			u_ptr+=16; 
+			v_ptr+=16;
+			a_ptr1+=32;
+			a_ptr2+=32;
+		}
+	}
+	#undef LOAD_SI128
+	#undef SAVE_SI128
+}
+
+#endif  // _YUVRGB_SSE2_
 
 #ifdef _YUVRGB_SSE2_
 
