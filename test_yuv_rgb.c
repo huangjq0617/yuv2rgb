@@ -752,6 +752,14 @@ int main(int argc, char **argv)
 		test_rgba2yuva(width, height, RGBa, rgba_stride, Ya, Ua, Va, Aa, y_stride, uv_stride, yuv_format, 
 			out, "sse2_aligned_yuva", iteration_number, rgba32_yuva420_sse);
 		
+		memset(YUV, 0, unaligned_size);
+		test_rgba2yuva(width, height, RGBA, width*4, Y, U, V, A, width, (width+1)/2, yuv_format, 
+			out, "avx2_unaligned_yuva", iteration_number, rgba32_yuva420_avx2u);
+
+		memset(YUVa, 0, aligned_size);
+		test_rgba2yuva(width, height, RGBa, rgba_stride, Ya, Ua, Va, Aa, y_stride, uv_stride, yuv_format, 
+			out, "avx2_aligned_yuva", iteration_number, rgba32_yuva420_avx2);
+
 		free(RGBA);
 	}
 	

@@ -2126,4 +2126,326 @@ void rgb24_yuv420_avx2u(uint32_t width, uint32_t height,
 }
 
 
+#define UNPACK_RGB32_64_STEP2B(RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RD1, RD2, RD3, RD4, RD5, RD6, RD7, RD8) \
+RS1 = _mm256_permute4x64_epi64 (RS1, 0xD8); \
+RS2 = _mm256_permute4x64_epi64 (RS2, 0xD8); \
+RS3 = _mm256_permute4x64_epi64 (RS3, 0xD8); \
+RS4 = _mm256_permute4x64_epi64 (RS4, 0xD8); \
+RS5 = _mm256_permute4x64_epi64 (RS5, 0xD8); \
+RS6 = _mm256_permute4x64_epi64 (RS6, 0xD8); \
+RS7 = _mm256_permute4x64_epi64 (RS7, 0xD8); \
+RS8 = _mm256_permute4x64_epi64 (RS8, 0xD8); \
+RD1 = _mm256_unpacklo_epi8(RS1, RS5); \
+RD2 = _mm256_unpackhi_epi8(RS1, RS5); \
+RD3 = _mm256_unpacklo_epi8(RS2, RS6); \
+RD4 = _mm256_unpackhi_epi8(RS2, RS6); \
+RD5 = _mm256_unpacklo_epi8(RS3, RS7); \
+RD6 = _mm256_unpackhi_epi8(RS3, RS7); \
+RD7 = _mm256_unpacklo_epi8(RS4, RS8); \
+RD8 = _mm256_unpackhi_epi8(RS4, RS8);
+
+#define UNPACK_RGB32_64_STEP2B_POST(RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RD1, RD2, RD3, RD4, RD5, RD6, RD7, RD8) \
+RD1 = _mm256_permute4x64_epi64 (RS1, 0xD8); \
+RD2 = _mm256_permute4x64_epi64 (RS2, 0xD8); \
+RD3 = _mm256_permute4x64_epi64 (RS3, 0xD8); \
+RD4 = _mm256_permute4x64_epi64 (RS4, 0xD8); \
+RD5 = _mm256_permute4x64_epi64 (RS5, 0xD8); \
+RD6 = _mm256_permute4x64_epi64 (RS6, 0xD8); \
+RD7 = _mm256_permute4x64_epi64 (RS7, 0xD8); \
+RD8 = _mm256_permute4x64_epi64 (RS8, 0xD8);
+
+
+#define RGBA2YUVA_64 \
+	__m256i r_32, g_32, b_32; \
+	__m256i y1_32, y2_32, cb1_32, cb2_32, cr1_32, cr2_32, Y, cb, cr, A; \
+	__m256i tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8; \
+	__m256i rgb1 = LOAD_SI256((const __m256i*)(rgba_ptr1)), \
+		rgb2 = LOAD_SI256((const __m256i*)(rgba_ptr1+32)), \
+		rgb3 = LOAD_SI256((const __m256i*)(rgba_ptr1+64)), \
+		rgb4 = LOAD_SI256((const __m256i*)(rgba_ptr1+96)), \
+		rgb5 = LOAD_SI256((const __m256i*)(rgba_ptr2)), \
+		rgb6 = LOAD_SI256((const __m256i*)(rgba_ptr2+32)), \
+		rgb7 = LOAD_SI256((const __m256i*)(rgba_ptr2+64)), \
+		rgb8 = LOAD_SI256((const __m256i*)(rgba_ptr2+96)); \
+	/* unpack rgb24 data to r, g and b data in separate channels*/ \
+	/* see rgb.txt to get an idea of the algorithm, note that we only go to the next to last step*/ \
+	/* here, because averaging in horizontal direction is easier like this*/ \
+	/* The last step is applied further on the Y channel only*/ \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B_POST(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	/* first compute Y', (B-Y') and (R-Y'), in 16bits values, for the first line */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are saved*/ \
+	r_32 = _mm256_unpacklo_epi8(rgb1, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpacklo_epi8(rgb2, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpacklo_epi8(rgb3, _mm256_setzero_si256()); \
+	y1_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y1_32 = _mm256_add_epi16(y1_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y1_32 = _mm256_srli_epi16(y1_32, 8); \
+	cb1_32 = _mm256_sub_epi16(b_32, y1_32); \
+	cr1_32 = _mm256_sub_epi16(r_32, y1_32); \
+	r_32 = _mm256_unpacklo_epi8(rgb5, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpacklo_epi8(rgb6, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpacklo_epi8(rgb7, _mm256_setzero_si256()); \
+	y2_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y2_32 = _mm256_add_epi16(y2_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y2_32 = _mm256_srli_epi16(y2_32, 8); \
+	cb1_32 = _mm256_add_epi16(cb1_32, _mm256_sub_epi16(b_32, y2_32)); \
+	cr1_32 = _mm256_add_epi16(cr1_32, _mm256_sub_epi16(r_32, y2_32)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y1_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	y2_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y2_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	Y = _mm256_packus_epi16(y1_32, y2_32); \
+	Y = _mm256_unpackhi_epi8(_mm256_slli_si256(Y, 8), Y); \
+	SAVE_SI256((__m256i*)(y_ptr1), Y); \
+	/* same for the second line, compute Y', (B-Y') and (R-Y'), in 16bits values */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are added to the previous values*/ \
+	r_32 = _mm256_unpackhi_epi8(rgb1, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpackhi_epi8(rgb2, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpackhi_epi8(rgb3, _mm256_setzero_si256()); \
+	y1_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y1_32 = _mm256_add_epi16(y1_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y1_32 = _mm256_srli_epi16(y1_32, 8); \
+	cb1_32 = _mm256_add_epi16(cb1_32, _mm256_sub_epi16(b_32, y1_32)); \
+	cr1_32 = _mm256_add_epi16(cr1_32, _mm256_sub_epi16(r_32, y1_32)); \
+	r_32 = _mm256_unpackhi_epi8(rgb5, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpackhi_epi8(rgb6, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpackhi_epi8(rgb7, _mm256_setzero_si256()); \
+	y2_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y2_32 = _mm256_add_epi16(y2_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y2_32 = _mm256_srli_epi16(y2_32, 8); \
+	cb1_32 = _mm256_add_epi16(cb1_32, _mm256_sub_epi16(b_32, y2_32)); \
+	cr1_32 = _mm256_add_epi16(cr1_32, _mm256_sub_epi16(r_32, y2_32)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y1_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	y2_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y2_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	Y = _mm256_packus_epi16(y1_32, y2_32); \
+	Y = _mm256_unpackhi_epi8(_mm256_slli_si256(Y, 8), Y); \
+	SAVE_SI256((__m256i*)(y_ptr2), Y); \
+	A = _mm256_unpacklo_epi8(rgb4, rgb8); \
+	SAVE_SI256((__m256i*)(a_ptr1), A); \
+	A = _mm256_unpackhi_epi8(rgb4, rgb8); \
+	SAVE_SI256((__m256i*)(a_ptr2), A); \
+	/* Rescale Cb and Cr to their final range */ \
+	cb1_32 = _mm256_add_epi16(_mm256_srai_epi16(_mm256_mullo_epi16(_mm256_srai_epi16(cb1_32, 2), _mm256_set1_epi16(param->cb_factor)), 8), _mm256_set1_epi16(128)); \
+	cr1_32 = _mm256_add_epi16(_mm256_srai_epi16(_mm256_mullo_epi16(_mm256_srai_epi16(cr1_32, 2), _mm256_set1_epi16(param->cr_factor)), 8), _mm256_set1_epi16(128)); \
+	\
+	/* do the same again with next data */ \
+	rgb1 = LOAD_SI256((const __m256i*)(rgba_ptr1+128)), \
+	rgb2 = LOAD_SI256((const __m256i*)(rgba_ptr1+160)), \
+	rgb3 = LOAD_SI256((const __m256i*)(rgba_ptr1+192)), \
+	rgb4 = LOAD_SI256((const __m256i*)(rgba_ptr1+224)), \
+	rgb5 = LOAD_SI256((const __m256i*)(rgba_ptr2+128)), \
+	rgb6 = LOAD_SI256((const __m256i*)(rgba_ptr2+160)), \
+	rgb7 = LOAD_SI256((const __m256i*)(rgba_ptr2+192)); \
+	rgb8 = LOAD_SI256((const __m256i*)(rgba_ptr2+224)); \
+	/* unpack rgb24 data to r, g and b data in separate channels*/ \
+	/* see rgb.txt to get an idea of the algorithm, note that we only go to the next to last step*/ \
+	/* here, because averaging in horizontal direction is easier like this*/ \
+	/* The last step is applied further on the Y channel only*/ \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	UNPACK_RGB32_64_STEP2B(rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8) \
+	UNPACK_RGB32_64_STEP2B_POST(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, rgb1, rgb2, rgb3, rgb4, rgb5, rgb6, rgb7, rgb8) \
+	/* first compute Y', (B-Y') and (R-Y'), in 16bits values, for the first line */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are saved*/ \
+	r_32 = _mm256_unpacklo_epi8(rgb1, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpacklo_epi8(rgb2, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpacklo_epi8(rgb3, _mm256_setzero_si256()); \
+	y1_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y1_32 = _mm256_add_epi16(y1_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y1_32 = _mm256_srli_epi16(y1_32, 8); \
+	cb2_32 = _mm256_sub_epi16(b_32, y1_32); \
+	cr2_32 = _mm256_sub_epi16(r_32, y1_32); \
+	r_32 = _mm256_unpacklo_epi8(rgb5, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpacklo_epi8(rgb6, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpacklo_epi8(rgb7, _mm256_setzero_si256()); \
+	y2_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y2_32 = _mm256_add_epi16(y2_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y2_32 = _mm256_srli_epi16(y2_32, 8); \
+	cb2_32 = _mm256_add_epi16(cb2_32, _mm256_sub_epi16(b_32, y2_32)); \
+	cr2_32 = _mm256_add_epi16(cr2_32, _mm256_sub_epi16(r_32, y2_32)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y1_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	y2_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y2_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	Y = _mm256_packus_epi16(y1_32, y2_32); \
+	Y = _mm256_unpackhi_epi8(_mm256_slli_si256(Y, 8), Y); \
+	SAVE_SI256((__m256i*)(y_ptr1+32), Y); \
+	/* same for the second line, compute Y', (B-Y') and (R-Y'), in 16bits values */ \
+	/* Y is saved for each pixel, while only sums of (B-Y') and (R-Y') for pairs of adjacents pixels are added to the previous values*/ \
+	r_32 = _mm256_unpackhi_epi8(rgb1, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpackhi_epi8(rgb2, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpackhi_epi8(rgb3, _mm256_setzero_si256()); \
+	y1_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y1_32 = _mm256_add_epi16(y1_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y1_32 = _mm256_srli_epi16(y1_32, 8); \
+	cb2_32 = _mm256_add_epi16(cb2_32, _mm256_sub_epi16(b_32, y1_32)); \
+	cr2_32 = _mm256_add_epi16(cr2_32, _mm256_sub_epi16(r_32, y1_32)); \
+	r_32 = _mm256_unpackhi_epi8(rgb5, _mm256_setzero_si256()); \
+	g_32 = _mm256_unpackhi_epi8(rgb6, _mm256_setzero_si256()); \
+	b_32 = _mm256_unpackhi_epi8(rgb7, _mm256_setzero_si256()); \
+	y2_32 = _mm256_add_epi16(_mm256_mullo_epi16(r_32, _mm256_set1_epi16(param->r_factor)), \
+		_mm256_mullo_epi16(g_32, _mm256_set1_epi16(param->g_factor))); \
+	y2_32 = _mm256_add_epi16(y2_32, _mm256_mullo_epi16(b_32, _mm256_set1_epi16(param->b_factor))); \
+	y2_32 = _mm256_srli_epi16(y2_32, 8); \
+	cb2_32 = _mm256_add_epi16(cb2_32, _mm256_sub_epi16(b_32, y2_32)); \
+	cr2_32 = _mm256_add_epi16(cr2_32, _mm256_sub_epi16(r_32, y2_32)); \
+	/* Rescale Y' to Y, pack it to 8bit values and save it */ \
+	y1_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y1_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	y2_32 = _mm256_add_epi16(_mm256_srli_epi16(_mm256_mullo_epi16(y2_32, _mm256_set1_epi16(param->y_factor)), 7), _mm256_set1_epi16(param->y_offset)); \
+	Y = _mm256_packus_epi16(y1_32, y2_32); \
+	Y = _mm256_unpackhi_epi8(_mm256_slli_si256(Y, 8), Y); \
+	SAVE_SI256((__m256i*)(y_ptr2+32), Y); \
+	A = _mm256_unpacklo_epi8(rgb4, rgb8); \
+	SAVE_SI256((__m256i*)(a_ptr1+32), A); \
+	A = _mm256_unpackhi_epi8(rgb4, rgb8); \
+	SAVE_SI256((__m256i*)(a_ptr2+32), A); \
+	/* Rescale Cb and Cr to their final range */ \
+	cb2_32 = _mm256_add_epi16(_mm256_srai_epi16(_mm256_mullo_epi16(_mm256_srai_epi16(cb2_32, 2), _mm256_set1_epi16(param->cb_factor)), 8), _mm256_set1_epi16(128)); \
+	cr2_32 = _mm256_add_epi16(_mm256_srai_epi16(_mm256_mullo_epi16(_mm256_srai_epi16(cr2_32, 2), _mm256_set1_epi16(param->cr_factor)), 8), _mm256_set1_epi16(128)); \
+	/* Pack and save Cb Cr */ \
+	cb = _mm256_packus_epi16(cb1_32, cb2_32); \
+	cr = _mm256_packus_epi16(cr1_32, cr2_32); \
+	cb = _mm256_permute4x64_epi64 (cb, 0xD8); \
+	cr = _mm256_permute4x64_epi64 (cr, 0xD8); \
+	SAVE_SI256((__m256i*)(u_ptr), cb); \
+	SAVE_SI256((__m256i*)(v_ptr), cr);
+
+
+void rgba32_yuva420_avx2(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
+	YCbCrType yuv_type)
+{
+	assert(width % 32 == 0);
+	assert(height % 2 == 0);
+
+	#define LOAD_SI128 _mm_load_si128
+	#define SAVE_SI128 _mm_store_si128
+	#define LOAD_SI256 _mm256_load_si256
+	#define SAVE_SI256 _mm256_store_si256
+	const RGB2YUVParam *const param = &(RGB2YUV[yuv_type]);
+	
+	uint32_t x, y;
+	for(y=0; y<(height-1); y+=2)
+	{
+		const uint8_t *rgba_ptr1=RGBA+y*RGBA_stride,
+			*rgba_ptr2=RGBA+(y+1)*RGBA_stride;
+		
+		uint8_t *y_ptr1=Y+y*Y_stride,
+			*y_ptr2=Y+(y+1)*Y_stride,
+			*u_ptr=U+(y/2)*UV_stride,
+			*v_ptr=V+(y/2)*UV_stride,
+			*a_ptr1=A+y*Y_stride,
+			*a_ptr2=A+(y+1)*Y_stride;
+		
+		for(x=0; x<(width-63); x+=64)
+		{
+			RGBA2YUVA_64
+			
+			rgba_ptr1+=256;
+			rgba_ptr2+=256;
+			y_ptr1+=64;
+			y_ptr2+=64;
+			u_ptr+=32;
+			v_ptr+=32;
+			a_ptr1+=64;
+			a_ptr2+=64;
+		}
+
+		if(x<(width-31))
+		{
+			RGBA2YUVA_32
+
+			rgba_ptr1+=128;
+			rgba_ptr2+=128;
+			y_ptr1+=32;
+			y_ptr2+=32;
+			u_ptr+=16;
+			v_ptr+=16;
+			a_ptr1+=32;
+			a_ptr2+=32;
+		}
+	}
+	#undef LOAD_SI128
+	#undef SAVE_SI128
+	#undef LOAD_SI256
+	#undef SAVE_SI256
+}
+
+void rgba32_yuva420_avx2u(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
+	YCbCrType yuv_type)
+{
+	assert(width % 32 == 0);
+	assert(height % 2 == 0);
+
+	#define LOAD_SI128 _mm_loadu_si128
+	#define SAVE_SI128 _mm_storeu_si128
+	#define LOAD_SI256 _mm256_loadu_si256
+	#define SAVE_SI256 _mm256_storeu_si256
+	const RGB2YUVParam *const param = &(RGB2YUV[yuv_type]);
+	
+	uint32_t x, y;
+	for(y=0; y<(height-1); y+=2)
+	{
+		const uint8_t *rgba_ptr1=RGBA+y*RGBA_stride,
+			*rgba_ptr2=RGBA+(y+1)*RGBA_stride;
+		
+		uint8_t *y_ptr1=Y+y*Y_stride,
+			*y_ptr2=Y+(y+1)*Y_stride,
+			*u_ptr=U+(y/2)*UV_stride,
+			*v_ptr=V+(y/2)*UV_stride,
+			*a_ptr1=A+y*Y_stride,
+			*a_ptr2=A+(y+1)*Y_stride;
+		
+		for(x=0; x<(width-63); x+=64)
+		{
+			RGBA2YUVA_64
+			
+			rgba_ptr1+=256;
+			rgba_ptr2+=256;
+			y_ptr1+=64;
+			y_ptr2+=64;
+			u_ptr+=32;
+			v_ptr+=32;
+			a_ptr1+=64;
+			a_ptr2+=64;
+		}
+
+		if(x<(width-31))
+		{
+			RGBA2YUVA_32
+
+			rgba_ptr1+=128;
+			rgba_ptr2+=128;
+			y_ptr1+=32;
+			y_ptr2+=32;
+			u_ptr+=16;
+			v_ptr+=16;
+			a_ptr1+=32;
+			a_ptr2+=32;
+		}
+	}
+	#undef LOAD_SI128
+	#undef SAVE_SI128
+	#undef LOAD_SI256
+	#undef SAVE_SI256
+}
+
 #endif // _YUVRGB_AVX2_

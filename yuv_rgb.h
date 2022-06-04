@@ -199,6 +199,24 @@ void rgba32_yuva420_sseu(
 	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
 	YCbCrType yuv_type);
 
+// rgba to yuva, avx2 implementation
+// pointers must be 32 byte aligned, and strides must be divisible by 32
+// alpha channel is handled
+void rgba32_yuva420_avx2(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
+	YCbCrType yuv_type);
+
+// rgba to yuva, avx2 implementation
+// pointers do not need to be 32 byte aligned
+// alpha channel is handled
+void rgba32_yuva420_avx2u(
+	uint32_t width, uint32_t height,
+	const uint8_t *RGBA, uint32_t RGBA_stride,
+	uint8_t *Y, uint8_t *U, uint8_t *V, uint8_t *A, uint32_t Y_stride, uint32_t UV_stride,
+	YCbCrType yuv_type);
+
 #ifdef __cplusplus
 }
 #endif
