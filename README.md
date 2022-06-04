@@ -60,3 +60,6 @@ And for rgb2yuv:
     Processing time (ipp_aligned) : 0.579043 sec
 
 configuration : gcc 4.9.2, swscale 3.0.0, IPP 9.0.1, intel i7-5500U
+
+# Notice!!!
+gcc 4.8.5 not work, gcc 5.4.0 work!!!
