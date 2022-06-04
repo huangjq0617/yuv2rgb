@@ -131,6 +131,22 @@ void rgb24_yuv420_sseu(
 	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
 	YCbCrType yuv_type);
 
+// rgb to yuv, avx2 implementation
+// pointers must be 32 byte aligned, and strides must be divisible by 32
+void rgb24_yuv420_avx2(
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	YCbCrType yuv_type);
+
+// rgb to yuv, avx2 implementation
+// pointers do not need to be 16 byte aligned
+void rgb24_yuv420_avx2u(
+	uint32_t width, uint32_t height,
+	const uint8_t *rgb, uint32_t rgb_stride,
+	uint8_t *y, uint8_t *u, uint8_t *v, uint32_t y_stride, uint32_t uv_stride,
+	YCbCrType yuv_type);
+
 // rgba to yuv, standard c implementation
 // alpha channel is ignored
 void rgb32_yuv420_std(

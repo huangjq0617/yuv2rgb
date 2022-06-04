@@ -4,7 +4,7 @@
 cmake_minimum_required (VERSION 2.6)
 project (yuv_rgb)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wall -Wextra -pedantic -std=c99 -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wall -Wextra -pedantic -std=c99 -O3 -mavx2")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic -std=c99")
 
 set(USE_FFMPEG FALSE CACHE BOOL "Enable ffmpeg")

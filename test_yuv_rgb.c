@@ -394,8 +394,67 @@ void rgb24_yuv420_ipp(uint32_t width, uint32_t height,
 
 #endif
 
+// void outputBuf(uint8_t *buf, uint32_t count)
+// {
+// 	const uint32_t SEGMENT_SIZE = 16;
+
+// 	for (uint32_t i=0; i< count; ++i) {
+// 		if (i % SEGMENT_SIZE == 0) printf("\n");
+// 		printf("%02X ", (uint32_t)buf[i]);
+// 	}
+// 	printf("\n");
+// }
+
+
+// void testAvx2()
+// {
+// 	uint8_t *buf = _mm_malloc(32 * 6, 32);
+// 	for (uint8_t i=0; i < 32 * 6; ++i) {
+// 		buf[i] = i;
+// 	}
+// 	printf("original data buf: \n");
+// 	outputBuf(buf, 32 * 6);
+
+// 	uint8_t *out_buf = _mm_malloc(32 * 6, 32);
+// 	memset(out_buf, 0, 32 *6);
+// 	// printf("original data out_buf: \n");
+// 	// outputBuf(out_buf, 32 * 6);
+
+// #define LOAD_SI256 _mm256_load_si256
+// #define SAVE_SI256 _mm256_store_si256
+
+// 	__m256i rgb1 = LOAD_SI256((const __m256i*)(buf)),
+// 	rgb2 = LOAD_SI256((const __m256i*)(buf+32)),
+// 	rgb3 = LOAD_SI256((const __m256i*)(buf+64)),
+// 	rgb4 = LOAD_SI256((const __m256i*)(buf+96)),
+// 	rgb5 = LOAD_SI256((const __m256i*)(buf+128)),
+// 	rgb6 = LOAD_SI256((const __m256i*)(buf+160));
+
+// 	// rgb1 = _mm256_permute4x64_epi64 (rgb1, 0xD8);
+// 	// rgb2 = _mm256_permute4x64_epi64 (rgb2, 0xD8);
+// 	// rgb3 = _mm256_permute4x64_epi64 (rgb3, 0xD8);
+// 	// rgb4 = _mm256_permute4x64_epi64 (rgb4, 0xD8);
+// 	// rgb5 = _mm256_permute4x64_epi64 (rgb5, 0xD8);
+// 	// rgb6 = _mm256_permute4x64_epi64 (rgb6, 0xD8);
+// 	rgb1 = _mm256_slli_si256(rgb1, 8);
+
+// 	SAVE_SI256((__m256i*)(out_buf), rgb1);
+// 	SAVE_SI256((__m256i*)(out_buf+32), rgb2);
+// 	SAVE_SI256((__m256i*)(out_buf+64), rgb3);
+// 	SAVE_SI256((__m256i*)(out_buf+96), rgb4);
+// 	SAVE_SI256((__m256i*)(out_buf+128), rgb5);
+// 	SAVE_SI256((__m256i*)(out_buf+160), rgb6);
+
+// 	printf("new data out_buf: \n");
+// 	outputBuf(out_buf, 32 * 6);
+
+// 	exit(0);
+// }
+
 int main(int argc, char **argv)
 {
+	// testAvx2();
+
 	if(argc<4)
 	{
 		printf("Usage : test yuv2rgb <yuv image file> <image width> <image height> <output template filename>\n");
@@ -614,6 +673,13 @@ int main(int argc, char **argv)
 		test_rgb2yuv(width, height, RGBa, rgb_stride, Ya, Ua, Va, y_stride, uv_stride, yuv_format, 
 			out, "ipp_aligned", iteration_number, rgb24_yuv420_ipp);
 #endif
+		memset(YUV, 0, width*height*3/2);
+		test_rgb2yuv(width, height, RGB, width*3, Y, U, V, width, (width+1)/2, yuv_format,
+			out, "avx2_unaligned", iteration_number, rgb24_yuv420_avx2u);
+
+		memset(YUVa, 0, y_size+2*uv_size);
+		test_rgb2yuv(width, height, RGBa, rgb_stride, Ya, Ua, Va, y_stride, uv_stride, yuv_format, 
+			out, "avx2_aligned", iteration_number, rgb24_yuv420_avx2);
 	}
 	else if(mode==RGBA2YUV)
 	{
